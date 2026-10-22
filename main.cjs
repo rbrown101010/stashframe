@@ -13,8 +13,8 @@ const { downloadImage } = require('./image-download.cjs');
 const { rankImage } = require('./jev-ranking.cjs');
 const { makeSticker } = require('./sticker.cjs');
 
-// Keep Electron's internal name stable for the existing macOS Safe Storage key.
-// The bundle, window, application menu, and tray use the public Stashframe name.
+// Initialize macOS Safe Storage with the existing Keychain service name.
+// Switch the public runtime name after startup has initialized encryption.
 app.setName('Agent Native Images');
 const testMode = process.argv.includes('--test-mode');
 const testRoot = process.argv.find(arg => arg.startsWith('--test-data='))?.split('=').slice(1).join('=');
@@ -239,6 +239,7 @@ async function start() {
   try { preferences = { ...preferences, ...JSON.parse(await fs.readFile(settingsPath, 'utf8')) }; } catch {}
   // Refresh the login item after an upgrade or app-bundle rename.
   if (!testMode && preferences.launchAtLogin) app.setLoginItemSettings({ openAtLogin: true, args: ['--hidden'] });
+  app.setName('Stashframe');
   const importAt = process.argv.indexOf('--credentials-file');
   if (importAt >= 0) {
     const file = process.argv[importAt + 1];
