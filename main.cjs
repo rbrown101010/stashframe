@@ -237,6 +237,8 @@ async function start() {
   try { secrets = JSON.parse(safeStorage.decryptString(await fs.readFile(secretPath))); } catch (error) { if (error.code !== 'ENOENT') console.error('Credentials unavailable; re-enter keys in Settings.'); }
   if (process.env.AI_GATEWAY_API_KEY && process.env.AI_GATEWAY_API_KEY !== secrets.gateway) await saveSecrets({ gateway: process.env.AI_GATEWAY_API_KEY });
   try { preferences = { ...preferences, ...JSON.parse(await fs.readFile(settingsPath, 'utf8')) }; } catch {}
+  // Refresh the login item after an upgrade or app-bundle rename.
+  if (!testMode && preferences.launchAtLogin) app.setLoginItemSettings({ openAtLogin: true, args: ['--hidden'] });
   const importAt = process.argv.indexOf('--credentials-file');
   if (importAt >= 0) {
     const file = process.argv[importAt + 1];
