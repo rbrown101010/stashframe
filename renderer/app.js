@@ -14,6 +14,7 @@ const paths = {
   left: '<path d="m14 6-6 6 6 6"/>', right: '<path d="m10 6 6 6-6 6"/>',
   copy: '<rect x="8" y="8" width="12" height="12" rx="2"/><path d="M15 8V5a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h3"/>',
   save: '<path d="M12 3v12m-5-5 5 5 5-5M4 16v4a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-4"/>',
+  sticker: '<path d="M14 21H6a3 3 0 0 1-3-3V6a3 3 0 0 1 3-3h12a3 3 0 0 1 3 3v8Z"/><path d="M14 21v-4a3 3 0 0 1 3-3h4"/>',
   cut: '<path d="m16 3 1.5 4.5L22 9l-4.5 1.5L16 15l-1.5-4.5L10 9l4.5-1.5L16 3ZM6 12l1 3 3 1-3 1-1 3-1-3-3-1 3-1 1-3Z"/>',
   folder: '<path d="M3 7V5a2 2 0 0 1 2-2h5l2 3h7a2 2 0 0 1 2 2v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7Z"/>',
   bookmark: '<path d="M6 4a1 1 0 0 1 1-1h10a1 1 0 0 1 1 1v17l-6-4-6 4V4Z"/>',
@@ -41,7 +42,7 @@ function current() { return tabs.find(tab => tab.id === activeId); }
 function persist() {
   try { localStorage.setItem('image-session', JSON.stringify({ tabs: tabs.map(tab => ({ ...tab, items: tab.items.slice(0, 120), loading: false, planning: false, planToken: '', token: '' })), activeId: activeId === 'saved' ? tabs[0].id : activeId, recent })); } catch {}
 }
-function focusSearch(select = true) { if (activeModule === 'generator') { $('#generation-prompt').focus(); return; } if (activeModule === 'notes') { window.notes?.focus(); return; } if (activeModule === 'twitter') { window.twitter?.focus(select); return; } const input = $('#search-input'); input.focus(); if (select) input.select(); }
+function focusSearch(select = true) { if (activeModule === 'generator') { $('#generation-prompt').focus(); return; } if (activeModule === 'notes') { window.notes?.focus(); return; } const input = $('#search-input'); input.focus(); if (select) input.select(); }
 function toast(text, error = false) { clearTimeout(toastTimer); const node = $('#toast'); node.textContent = text; node.className = error ? 'error' : ''; node.hidden = false; toastTimer = setTimeout(() => { node.hidden = true; }, error ? 8000 : 2800); }
 function renderTabs() {
   const container = $('#tabs'); container.replaceChildren();
@@ -58,11 +59,10 @@ function renderTabs() {
 }
 function selectModule(module) {
   activeModule = module; closeFilters();
-  $('#search-workspace').hidden = module !== 'search'; $('#generator-workspace').hidden = module !== 'generator'; $('#notes-workspace').hidden = module !== 'notes'; $('#twitter-workspace').hidden = module !== 'twitter';
-  for (const [id, name] of [['search-module', 'search'], ['generate-module', 'generator'], ['notes-module', 'notes'], ['twitter-module', 'twitter']]) { const node = $('#' + id); node.classList.toggle('active', module === name); if (module === name) node.setAttribute('aria-current', 'page'); else node.removeAttribute('aria-current'); }
+  $('#search-workspace').hidden = module !== 'search'; $('#generator-workspace').hidden = module !== 'generator'; $('#notes-workspace').hidden = module !== 'notes';
+  for (const [id, name] of [['search-module', 'search'], ['generate-module', 'generator'], ['notes-module', 'notes']]) { const node = $('#' + id); node.classList.toggle('active', module === name); if (module === name) node.setAttribute('aria-current', 'page'); else node.removeAttribute('aria-current'); }
   if (module === 'generator') window.generator?.refresh();
   if (module === 'notes') window.notes?.refresh();
-  if (module === 'twitter') window.twitter?.refresh();
   focusSearch(false);
 }
 function selectTab(id) {
@@ -77,9 +77,8 @@ function selectTab(id) {
   render(); $('#content').scrollTop = tab?.scrollTop || 0; focusSearch(); persist();
   $('#tabs .tab.active')?.scrollIntoView({ block: 'nearest', inline: 'nearest' });
 }
-function newTab() { if (activeModule === 'twitter') return window.twitter?.newTab(); const tab = freshTab(); tabs.push(tab); selectTab(tab.id); }
+function newTab() { const tab = freshTab(); tabs.push(tab); selectTab(tab.id); }
 function closeTab(id = activeId) {
-  if (activeModule === 'twitter') return window.twitter?.closeTab();
   if (id === 'saved') { selectTab(tabs[tabs.length - 1].id); return; }
   const index = tabs.findIndex(tab => tab.id === id); tabs = tabs.filter(tab => tab.id !== id);
   if (!tabs.length) tabs.push(freshTab());
@@ -208,17 +207,17 @@ function card(item, tab, index) {
   img.addEventListener('error', () => { if (item.thumbnailUrl && !fallback && !item.cutout) { fallback = true; img.src = item.thumbnailUrl; } else { img.remove(); const broken = element('span', 'broken'); broken.innerHTML = icon('image'); broken.append(document.createTextNode('Preview unavailable')); stage.append(broken); } });
   stage.append(img);
   if (tab && jevMode && jevOverlay) stage.append(jevBadge(item));
-  if (saved.some(entry => entry.sourceUrl === item.sourceUrl && Boolean(entry.cutout) === Boolean(item.cutout))) { const mark = element('span', 'saved-mark'); mark.innerHTML = icon('check'); mark.title = 'In your saved library'; stage.append(mark); }
+  if (saved.some(entry => entry.sourceUrl === item.sourceUrl && Boolean(entry.cutout) === Boolean(item.cutout) && Boolean(entry.sticker) === Boolean(item.sticker))) { const mark = element('span', 'saved-mark'); mark.innerHTML = icon('check'); mark.title = 'In your saved library'; stage.append(mark); }
   if (working) { const overlay = element('span', 'working'); overlay.innerHTML = '<span class="spinner"></span>'; overlay.append(document.createTextNode(working)); stage.append(overlay); }
   const info = element('div', 'image-info'); const title = element('div', 'image-title', item.name || item.title); title.title = item.name || item.title; info.append(title);
-  const meta = element('div', 'image-meta'); meta.append(element('span', 'domain', item.cutout ? 'Background removed' : sourceDomain(item)), element('span', '', item.width && item.height ? `${item.width} × ${item.height}` : '')); info.append(meta);
+  const meta = element('div', 'image-meta'); meta.append(element('span', 'domain', item.sticker ? 'Sticker' : item.cutout ? 'Background removed' : sourceDomain(item)), element('span', '', item.width && item.height ? `${item.width} × ${item.height}` : '')); info.append(meta);
   const actions = actionButtons(item, tab, false); article.append(stage, info, actions);
   article.addEventListener('keydown', event => {
     if (event.target !== article) return;
     if (event.key === ' ' || event.key === 'Enter') { event.preventDefault(); openPreview(item, tab); }
     if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'c') { event.preventDefault(); perform('copy', item, tab); }
     if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 's') { event.preventDefault(); perform('save', item, tab); }
-    if (event.key.toLowerCase() === 'b') { event.preventDefault(); perform('removebg', item, tab); }
+    if (event.key.toLowerCase() === 'b') { event.preventDefault(); perform(event.shiftKey ? 'sticker' : 'removebg', item, tab); }
     const columns = getComputedStyle(article.parentElement).gridTemplateColumns.split(' ').length;
     const offset = { ArrowRight: 1, ArrowLeft: -1, ArrowDown: columns, ArrowUp: -columns }[event.key];
     if (offset !== undefined) { event.preventDefault(); document.querySelector(`.image-card[data-index="${Number(article.dataset.index) + offset}"]`)?.focus(); }
@@ -227,9 +226,14 @@ function card(item, tab, index) {
 }
 function actionButtons(item, tab, large) {
   const row = element('div', large ? 'preview-buttons' : 'card-actions');
-  const actions = [['copy', 'Copy', 'copy'], ['save', 'Save', 'save'], [item.cutout && item.original ? 'undo' : 'removebg', item.cutout && item.original ? 'Original' : item.cutout ? 'Cutout' : 'Remove BG', item.cutout && item.original ? 'undo' : 'cut']];
+  const actions = [['copy', 'Copy', 'copy'], ['save', 'Save', 'save'], ['removebg', 'Remove background', 'cut'], ['sticker', 'Sticker', 'sticker']];
+  if (item.original) actions.push(['undo', 'Original', 'undo']);
+  const hints = { copy: 'Copy image · ⌘C', save: 'Save to Downloads · ⌘S', removebg: 'Transparent cutout, no outline · B', sticker: 'Transparent sticker with a white outline · Shift B', undo: 'Return to the previous image' };
   for (const [type, label, glyph] of actions) {
-    const action = button(label, glyph, () => perform(type, item, tab)); action.disabled = Boolean(busy.get(itemKey(item))) || (type === 'removebg' && item.cutout); action.title = type === 'copy' ? 'Copy image and keep in Saved · ⌘C' : type === 'save' ? 'Save to Downloads and library · ⌘S' : type === 'undo' ? 'Return to the original image' : 'Remove background with remove.bg · B'; row.append(action);
+    const action = button(large ? label : '', glyph, () => perform(type, item, tab));
+    action.setAttribute('aria-label', label); action.dataset.action = type;
+    action.disabled = Boolean(busy.get(itemKey(item))) || (type === 'removebg' && item.cutout && !item.sticker) || (type === 'sticker' && item.sticker);
+    action.title = hints[type]; row.append(action);
   }
   const addToGenerator = button('', 'generate', () => window.generator.importSearch(item)); addToGenerator.title = 'Add to image generator'; addToGenerator.setAttribute('aria-label', 'Add to image generator'); addToGenerator.className = 'add-to-generator'; row.append(addToGenerator);
   if (large && item.source) row.append(button('Source', 'external', () => api.source(item.source).catch(error => toast(error.message, true))));
@@ -239,13 +243,13 @@ function actionButtons(item, tab, large) {
 async function perform(type, item, tab) {
   const key = itemKey(item); if (busy.has(key)) return;
   if (type === 'undo') { const original = item.original; for (const field of Object.keys(item)) delete item[field]; Object.assign(item, original); renderContent(); updatePreview(); persist(); return; }
-  busy.set(key, { copy: 'Copying…', save: 'Saving…', removebg: 'Removing…' }[type]); renderContent(); updatePreview();
+  busy.set(key, { copy: 'Copying…', save: 'Saving…', removebg: 'Removing…', sticker: 'Making sticker…' }[type]); renderContent(); updatePreview();
   try {
     const result = await api.action({ type, item: { ...item, original: undefined }, query: tab?.query || item.query });
-    if (type === 'removebg') {
+    if (type === 'removebg' || type === 'sticker') {
       if (tab) { const original = { ...item }; Object.assign(item, result, { key, original }); }
-      else { const cutoutTab = freshTab(); cutoutTab.browsingSaved = false; cutoutTab.query = item.query; cutoutTab.draft = item.query; cutoutTab.items = [{ ...result, key: crypto.randomUUID(), original: item, query: item.query }]; tabs.push(cutoutTab); selectTab(cutoutTab.id); if (preview) preview = { item: cutoutTab.items[0], tab: cutoutTab }; }
-      toast('Background removed. Ready to copy or save.');
+      else { const cutoutTab = freshTab(); cutoutTab.browsingSaved = false; cutoutTab.query = item.query; cutoutTab.draft = item.query; cutoutTab.items = [{ ...result, key: crypto.randomUUID(), original: item, query: item.query }]; tabs.push(cutoutTab); selectTab(cutoutTab.id); if (preview) preview = { item: cutoutTab.items[0], tab: cutoutTab, items: cutoutTab.items }; }
+      toast(type === 'sticker' ? 'Sticker ready. Copy or save it.' : 'Background removed. No outline.');
     } else {
       await refreshSaved(); toast((type === 'copy' ? `${result.name} copied · kept in Saved` : `${result.name}.png saved to Downloads`) + (result.usedPreview ? ' · preview quality' : ''));
     }
@@ -285,7 +289,7 @@ function setShortcutLabel(shortcut) { return shortcut.replace('CommandOrControl'
 async function openSettings() {
   try {
     const status = await api.status(); $('#shortcut-select').value = status.shortcut; $('#login-checkbox').checked = status.launchAtLogin; $('#jev-mode').checked = status.jevMode; $('#jev-overlay').checked = status.jevOverlay;
-    for (const [name, configured] of [['serper', status.serper], ['removebg', status.removebg], ['gateway', status.gateway], ['scrapecreators', status.scrapecreators]]) { $(`#${name}-state`).textContent = configured ? 'Connected' : 'Not configured'; $(`#${name}-key`).value = ''; $(`#${name}-key`).placeholder = configured ? 'Saved securely · enter to replace' : 'Enter API key'; }
+    for (const [name, configured] of [['serper', status.serper], ['removebg', status.removebg], ['gateway', status.gateway]]) { $(`#${name}-state`).textContent = configured ? 'Connected' : 'Not configured'; $(`#${name}-key`).value = ''; $(`#${name}-key`).placeholder = configured ? 'Saved securely · enter to replace' : 'Enter API key'; }
     $('#settings-error').textContent = status.shortcutActive ? '' : 'The shortcut is unavailable. Choose another shortcut above.';
     $('#api-settings').open = false; $('#keyboard-settings').open = false;
     $('#shortcut-label').textContent = setShortcutLabel(status.shortcut);
@@ -294,7 +298,7 @@ async function openSettings() {
 }
 $('#search-icon').innerHTML = icon('search'); $('#new-tab').innerHTML = icon('plus'); $('#settings-button').innerHTML = icon('settings'); $('#close-preview').innerHTML = icon('close'); $('#close-settings').innerHTML = icon('close'); $('#downloads-button').innerHTML = icon('folder') + 'Open folder';
 $('#search-module').innerHTML = icon('search'); $('#generate-module').innerHTML = icon('generate'); $('#notes-module').innerHTML = icon('note');
-$('#search-module').addEventListener('click', () => selectModule('search')); $('#generate-module').addEventListener('click', () => selectModule('generator')); $('#notes-module').addEventListener('click', () => selectModule('notes')); $('#twitter-module').addEventListener('click', () => selectModule('twitter'));
+$('#search-module').addEventListener('click', () => selectModule('search')); $('#generate-module').addEventListener('click', () => selectModule('generator')); $('#notes-module').addEventListener('click', () => selectModule('notes'));
 $('#previous-image').innerHTML = icon('left'); $('#next-image').innerHTML = icon('right');
 $('#previous-image').addEventListener('click', () => navigatePreview(-1));
 $('#next-image').addEventListener('click', () => navigatePreview(1));
@@ -343,7 +347,7 @@ $('#ai-search-button').addEventListener('click', () => aiSearch());
 $('#filters').addEventListener('click', event => { const node = event.target.closest('[data-kind]'); if (!node || !current()) return; const tab = current(); const changed = tab.kind !== node.dataset.kind; tab.kind = node.dataset.kind; closeFilters(true); if (changed && tab.draft.trim()) submitSearch(tab); else render(); persist(); });
 $('#settings-form').addEventListener('submit', async event => {
   event.preventDefault(); const submit = $('#settings-form .primary-button'); submit.disabled = true; $('#settings-error').textContent = '';
-  try { const status = await api.configure({ serper: $('#serper-key').value, removebg: $('#removebg-key').value, gateway: $('#gateway-key').value, scrapecreators: $('#scrapecreators-key').value, shortcut: $('#shortcut-select').value, launchAtLogin: $('#login-checkbox').checked, jevMode: $('#jev-mode').checked, jevOverlay: $('#jev-overlay').checked }); $('#shortcut-label').textContent = setShortcutLabel(status.shortcut); $('#settings-dialog').close(); $('#serper-key').value = ''; $('#removebg-key').value = ''; $('#gateway-key').value = ''; $('#scrapecreators-key').value = ''; applyJevSettings(status); toast('Settings saved.'); } catch (error) { $('#settings-error').textContent = error.message; } finally { submit.disabled = false; }
+  try { const status = await api.configure({ serper: $('#serper-key').value, removebg: $('#removebg-key').value, gateway: $('#gateway-key').value, shortcut: $('#shortcut-select').value, launchAtLogin: $('#login-checkbox').checked, jevMode: $('#jev-mode').checked, jevOverlay: $('#jev-overlay').checked }); $('#shortcut-label').textContent = setShortcutLabel(status.shortcut); $('#settings-dialog').close(); $('#serper-key').value = ''; $('#removebg-key').value = ''; $('#gateway-key').value = ''; applyJevSettings(status); toast('Settings saved.'); } catch (error) { $('#settings-error').textContent = error.message; } finally { submit.disabled = false; }
 });
 document.addEventListener('keydown', event => {
   if ($('#settings-dialog').open) return;
@@ -351,22 +355,10 @@ document.addEventListener('keydown', event => {
   if ($('#preview-dialog').open) {
     if (event.key === 'ArrowLeft' || event.key === 'ArrowRight') { event.preventDefault(); navigatePreview(event.key === 'ArrowLeft' ? -1 : 1); return; }
     if (command && ['c', 's'].includes(event.key.toLowerCase())) { event.preventDefault(); perform(event.key.toLowerCase() === 'c' ? 'copy' : 'save', preview.item, preview.tab); }
-    if (event.key.toLowerCase() === 'b') { event.preventDefault(); perform('removebg', preview.item, preview.tab); }
+    if (event.key.toLowerCase() === 'b') { event.preventDefault(); perform(event.shiftKey ? 'sticker' : 'removebg', preview.item, preview.tab); }
     return;
   }
   if (command && !event.shiftKey && !event.altKey && event.key.toLowerCase() === 'n') { event.preventDefault(); if (!event.repeat) window.notes?.create(); return; }
-  if (activeModule === 'twitter') {
-    if (command && event.key.toLowerCase() === 't') { event.preventDefault(); if (!event.repeat) window.twitter?.newTab(); return; }
-    if (command && event.key.toLowerCase() === 'w') { event.preventDefault(); window.twitter?.closeTab(); return; }
-    if (event.ctrlKey && event.key === 'Tab') { event.preventDefault(); window.twitter?.nextTab(); return; }
-    if (event.key === 'Escape' && !$('#tweet-filter-menu').hidden) { event.preventDefault(); window.twitter?.closeFilters(); return; }
-    if (event.key === 'Escape') { event.preventDefault(); api.hide(); }
-    if (command && event.key === ',') { event.preventDefault(); openSettings(); }
-    if (command && event.key.toLowerCase() === 'l') { event.preventDefault(); window.twitter?.focus(); }
-    if (command && event.key === 'Enter') { event.preventDefault(); if (!event.repeat) window.twitter?.aiSearch(); }
-    if (event.key === 'ArrowDown' && event.target === $('#tweet-input')) { event.preventDefault(); window.twitter?.focusFirst(); }
-    return;
-  }
   if (activeModule === 'notes') {
     if (event.key === 'Escape') { event.preventDefault(); api.hide(); }
     if (command && event.key === ',') { event.preventDefault(); openSettings(); }

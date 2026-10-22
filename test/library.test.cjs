@@ -25,3 +25,16 @@ test('concurrent copy/save naming is unique, durable, and deduplicated', async (
     assert.equal(titleFor('  '), 'Image');
   } finally { await fs.rm(root, { recursive: true, force: true }); }
 });
+
+
+test('legacy stickers and plain cutouts have separate identities after restart', async () => {
+  const root = await fs.mkdtemp(path.join(os.tmpdir(), 'images-migration-'));
+  try {
+    await fs.writeFile(path.join(root, 'library.json'), JSON.stringify({ counters: { logo: 1 }, entries: [{ id: 'old', sourceUrl: 'https://example.org/logo', cutout: true, sticker: true, identity: 'logo|https://example.org/logo|cutout', query: 'Logo', name: 'Logo (1)' }] }));
+    const lib = new Library(root, path.join(root, 'Downloads')); await lib.init();
+    const sticker = await lib.archive({ id: 'duplicate', sourceUrl: 'https://example.org/logo', cutout: true, sticker: true }, 'Logo');
+    const cutout = await lib.archive({ id: 'plain', sourceUrl: 'https://example.org/logo', cutout: true }, 'Logo');
+    assert.equal(sticker.id, 'old'); assert.equal(cutout.id, 'plain');
+    assert.equal(cutout.name, 'Logo (2)');
+  } finally { await fs.rm(root, { recursive: true, force: true }); }
+});

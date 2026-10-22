@@ -1,8 +1,8 @@
 {
-  "name": "agent-native-images",
-  "productName": "Agent Native Images",
-  "version": "1.4.4",
-  "description": "A fast image launcher for Agent Native",
+  "name": "stashframe",
+  "productName": "Stashframe",
+  "version": "1.5.0",
+  "description": "Find images, build an asset library, and create your next visual.",
   "private": true,
   "engines": {
     "node": ">=22.12.0"
@@ -13,18 +13,21 @@
     "start": "electron .",
     "test": "node --test test/*.test.cjs",
     "test:desktop": "node test/desktop.cjs",
-    "package": "electron-packager . 'Agent Native Images' --platform=darwin --arch=arm64 --out=release --overwrite --app-bundle-id=inc.agentnative.images --icon=assets/icon.icns --asar.unpackDir=node_modules --ignore='^/(test|release|README.md)'",
+    "package": "electron-packager . 'Stashframe' --platform=darwin --arch=arm64 --out=release --overwrite --app-bundle-id=inc.agentnative.images --icon=assets/icon.icns --asar.unpackDir=node_modules --ignore='^/(test|release|README.md)'",
     "test:batch": "node test/batch-desktop.cjs",
-    "test:notes": "node test/notes-desktop.cjs",
-    "test:twitter": "node test/twitter-desktop.cjs",
-    "test:social-tabs": "node test/social-tabs-desktop.cjs"
+    "test:notes": "node test/notes-desktop.cjs"
   },
   "devDependencies": {
     "@electron/packager": "20.3.0",
-    "electron": "44.2.0",
+    "electron": "44.9.3",
     "playwright": "1.63.0"
   },
   "dependencies": {
-    "sharp": "0.35.4"
+    "sharp": "0.35.5"
+  },
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/rbrown101010/stashframe.git"
   }
 }

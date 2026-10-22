@@ -127,7 +127,7 @@
   });
   function previewActions(item) {
     const actions = element('div');
-    actions.append(button('Use as reference', 'plus', () => { if (addReference(item)) { $('#preview-dialog').close(); selectModule('generator'); } }), button('Copy', 'copy', () => perform('copy', item, null)), button('Save', 'save', () => perform('save', item, null)));
+    actions.append(button('Use as reference', 'plus', () => { if (addReference(item)) { $('#preview-dialog').close(); selectModule('generator'); } }), button('Copy', 'copy', () => perform('copy', item, null)), button('Save', 'save', () => perform('save', item, null)), button('Remove background', 'cut', () => perform('removebg', item, null)), button('Sticker', 'sticker', () => perform('sticker', item, null)));
     return actions;
   }
   $('#attach-reference').innerHTML = icon('attach'); $('#generate-button').innerHTML = icon('arrowUp');

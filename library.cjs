@@ -17,7 +17,11 @@ class Library {
   async init() {
     await fs.mkdir(path.join(this.root, 'images'), { recursive: true });
     await fs.mkdir(this.downloads, { recursive: true });
-    try { this.data = JSON.parse(await fs.readFile(this.file, 'utf8')); }
+    try {
+      this.data = JSON.parse(await fs.readFile(this.file, 'utf8'));
+      // Older versions archived outlined stickers under the cutout identity.
+      for (const entry of this.data.entries) if (entry.sticker) entry.identity = entry.identity.replace(/\|cutout$/, '|sticker');
+    }
     catch (error) { if (error.code !== 'ENOENT') throw new Error('The saved library could not be read. Your images are still on disk.'); }
   }
   run(task) {
@@ -33,7 +37,7 @@ class Library {
   archive(asset, query) {
     return this.run(async () => {
       const base = titleFor(query);
-      const identity = `${base.toLocaleLowerCase()}|${asset.sourceUrl}|${asset.cutout ? 'cutout' : 'original'}`;
+      const identity = `${base.toLocaleLowerCase()}|${asset.sourceUrl}|${asset.sticker ? 'sticker' : asset.cutout ? 'cutout' : 'original'}`;
       const existing = this.data.entries.find(entry => entry.identity === identity);
       if (existing) return { ...existing };
       const counterKey = base.toLocaleLowerCase();

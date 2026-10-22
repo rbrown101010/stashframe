@@ -2,12 +2,10 @@ const { app, BrowserWindow, ipcMain, clipboard, ClipboardItem, nativeImage, glob
 const fs = require('node:fs/promises');
 const path = require('node:path');
 const { pathToFileURL } = require('node:url');
-const { execFile } = require('node:child_process');
-const { randomUUID, createHash } = require('node:crypto');
-const { Library, titleFor } = require('./library.cjs');
+const { randomUUID } = require('node:crypto');
+const { Library } = require('./library.cjs');
 const { GenerationStore } = require('./generation-store.cjs');
 const { NotesStore } = require('./notes-store.cjs');
-const { searchTweets, planTweetQuery, downloadVideo } = require('./twitter.cjs');
 const { generateImage, IMAGE_MODEL } = require('./image-generation.cjs');
 const { planSearches, DEFAULT_MODEL } = require('./ai-search.cjs');
 const { normalizeImage } = require('./image-formats.cjs');
@@ -15,6 +13,8 @@ const { downloadImage } = require('./image-download.cjs');
 const { rankImage } = require('./jev-ranking.cjs');
 const { makeSticker } = require('./sticker.cjs');
 
+// Keep Electron's internal name stable for the existing macOS Safe Storage key.
+// The bundle, window, application menu, and tray use the public Stashframe name.
 app.setName('Agent Native Images');
 const testMode = process.argv.includes('--test-mode');
 const testRoot = process.argv.find(arg => arg.startsWith('--test-data='))?.split('=').slice(1).join('=');
@@ -26,7 +26,7 @@ let secrets = {}, preferences = { shortcut: 'CommandOrControl+Shift+Space', laun
 const assets = new Map();
 const assetJobs = new Map();
 const removalJobs = new Map();
-const videoJobs = new Map();
+const stickerJobs = new Map();
 const root = app.getPath('userData');
 const settingsPath = path.join(root, 'settings.json');
 const secretPath = path.join(root, 'credentials.enc');
@@ -101,24 +101,40 @@ async function resolveAsset(item) {
 }
 async function removeBackground(item) {
   const original = await resolveAsset(item);
-  if (original.sticker) return original;
-  if (original.cutout) return storeAsset(await makeSticker(await fs.readFile(imagePath(original.id))), { sourceUrl: original.sourceUrl, source: original.source, title: original.title, domain: original.domain, cutout: true, sticker: true });
+  if (original.sticker) {
+    if (original.cutoutId) return resolveAsset({ id: original.cutoutId });
+    throw new Error('This older sticker has no plain cutout. Use the original image to remove its background.');
+  }
+  if (original.cutout) return original;
   if (!secrets.removebg) throw new Error('Add your remove.bg API key in Settings.');
-  if (!removalJobs.has(original.sourceUrl)) {
-    removalJobs.set(original.sourceUrl, (async () => {
+  if (!removalJobs.has(original.id)) {
+    removalJobs.set(original.id, (async () => {
       const form = new FormData();
       form.append('image_file', new Blob([await fs.readFile(imagePath(original.id))], { type: 'image/png' }), 'image.png');
       form.append('size', 'auto'); form.append('format', 'png');
       const response = await fetch('https://api.remove.bg/v1.0/removebg', { method: 'POST', headers: { 'X-Api-Key': secrets.removebg }, body: form, signal: AbortSignal.timeout(90000) });
       if (!response.ok) await apiError(response, 'remove.bg');
-      return storeAsset(await makeSticker(await responseBytes(response)), { sourceUrl: original.sourceUrl, source: original.source, title: original.title, domain: original.domain, cutout: true, sticker: true });
-    })().catch(error => { removalJobs.delete(original.sourceUrl); throw error; }));
+      return storeAsset(await responseBytes(response), { sourceUrl: original.sourceUrl, source: original.source, title: original.title, domain: original.domain, cutout: true, sticker: false });
+    })().catch(error => { removalJobs.delete(original.id); throw error; }));
   }
-  return removalJobs.get(original.sourceUrl);
+  return removalJobs.get(original.id);
+}
+async function createSticker(item) {
+  const original = await resolveAsset(item);
+  if (original.sticker) return original;
+  const cutout = await removeBackground(original);
+  if (!stickerJobs.has(cutout.id)) {
+    stickerJobs.set(cutout.id, (async () => storeAsset(await makeSticker(await fs.readFile(imagePath(cutout.id))), {
+      sourceUrl: cutout.sourceUrl, source: cutout.source, title: cutout.title, domain: cutout.domain,
+      cutout: true, sticker: true, cutoutId: cutout.id,
+    }))().catch(error => { stickerJobs.delete(cutout.id); throw error; }));
+  }
+  return stickerJobs.get(cutout.id);
 }
 async function action({ type, item, query }) {
-  if (!['copy', 'save', 'removebg'].includes(type)) throw new Error('Unknown image action.');
+  if (!['copy', 'save', 'removebg', 'sticker'].includes(type)) throw new Error('Unknown image action.');
   if (type === 'removebg') return removeBackground(item);
+  if (type === 'sticker') return createSticker(item);
   const asset = await resolveAsset(item);
   let entry = await library.archive(asset, query || item.query || 'Image');
   const bytes = await fs.readFile(imagePath(entry.id));
@@ -151,46 +167,13 @@ async function startGeneration(value) {
   }));
   return generations.add({ prompt: value.prompt, size: value.size, quality: value.quality, references });
 }
-async function cachedVideo(directory) {
-  try { const name = (await fs.readdir(directory)).find(file => file.endsWith('.mp4')); return name ? path.join(directory, name) : ''; } catch { return ''; }
-}
-async function uniqueCopy(source, directory, name, extension) {
-  await fs.mkdir(directory, { recursive: true });
-  for (let attempt = 0; ; attempt++) {
-    const destination = path.join(directory, `${name}${attempt ? ` - ${attempt + 1}` : ''}${extension}`);
-    try { await fs.copyFile(source, destination, fs.constants.COPYFILE_EXCL); return destination; }
-    catch (error) { if (error.code !== 'EEXIST') throw error; }
-  }
-}
-function copyFileToClipboard(file) {
-  // A file reference on the pasteboard pastes as the file itself in Finder, Messages, Slack, and editors.
-  const escaped = file.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
-  return new Promise((resolve, reject) => execFile('osascript', ['-e', `set the clipboard to (POSIX file "${escaped}")`], { timeout: 10000 }, error => error ? reject(new Error('The video was downloaded but could not be placed on the clipboard.')) : resolve()));
-}
-async function tweetVideo({ type, media, title } = {}) {
-  if (!['save', 'copy'].includes(type)) throw new Error('Unknown video action.');
-  const variants = Array.isArray(media?.variants) ? media.variants.filter(variant => typeof variant?.url === 'string').slice(0, 12) : [];
-  if (!variants.length) throw new Error('This video has no downloadable MP4.');
-  const id = createHash('sha1').update(String(media.key || variants[0].url)).digest('hex');
-  const directory = path.join(root, 'videos', id);
-  const name = titleFor(title || 'Tweet video');
-  let file = await cachedVideo(directory);
-  if (!file) {
-    if (!videoJobs.has(id)) videoJobs.set(id, downloadVideo(variants, { publicURL, destination: path.join(directory, `${name}.mp4`) }).finally(() => videoJobs.delete(id)));
-    await videoJobs.get(id);
-    file = await cachedVideo(directory);
-  }
-  if (type === 'copy') { await copyFileToClipboard(file); return { name: path.basename(file, '.mp4'), path: file }; }
-  const destination = await uniqueCopy(file, testMode ? path.join(root, 'Downloads') : app.getPath('downloads'), name, '.mp4');
-  return { name: path.basename(destination), path: destination };
-}
 function status() {
-  return { serper: Boolean(secrets.serper), removebg: Boolean(secrets.removebg), gateway: Boolean(secrets.gateway), scrapecreators: Boolean(secrets.scrapecreators), aiModel: process.env.AI_MODEL || DEFAULT_MODEL, imageModel: process.env.IMAGE_MODEL || IMAGE_MODEL, ...preferences, shortcutActive, downloads: app.getPath('downloads') };
+  return { serper: Boolean(secrets.serper), removebg: Boolean(secrets.removebg), gateway: Boolean(secrets.gateway), aiModel: process.env.AI_MODEL || DEFAULT_MODEL, imageModel: process.env.IMAGE_MODEL || IMAGE_MODEL, ...preferences, shortcutActive, downloads: app.getPath('downloads') };
 }
 async function saveSecrets(value) {
   if (!safeStorage.isEncryptionAvailable()) throw new Error('Keychain encryption is unavailable. Unlock your Mac and try again.');
-  const next = { ...secrets };
-  for (const name of ['serper', 'removebg', 'gateway', 'scrapecreators']) if (typeof value[name] === 'string' && value[name].trim()) next[name] = value[name].trim();
+  const next = Object.fromEntries(Object.entries(secrets).filter(([name]) => ['serper', 'removebg', 'gateway'].includes(name)));
+  for (const name of ['serper', 'removebg', 'gateway']) if (typeof value[name] === 'string' && value[name].trim()) next[name] = value[name].trim();
   await fs.writeFile(secretPath + '.tmp', safeStorage.encryptString(JSON.stringify(next)), { mode: 0o600 });
   await fs.rename(secretPath + '.tmp', secretPath);
   secrets = next;
@@ -201,7 +184,7 @@ function show() {
   const display = screen.getDisplayNearestPoint(screen.getCursorScreenPoint()).workArea;
   const bounds = window.getBounds();
   window.setPosition(Math.round(display.x + (display.width - bounds.width) / 2), Math.round(display.y + Math.max(50, (display.height - bounds.height) / 3)));
-  window.show(); window.focus(); window.webContents.send('focus-search');
+  window.show(); window.moveTop(); window.focus(); window.webContents.send('focus-search');
 }
 function toggle() { window?.isVisible() && window?.isFocused() ? window.hide() : show(); }
 function newNote() { show(); window?.webContents.send('new-note'); }
@@ -215,7 +198,7 @@ function registerShortcut(shortcut) {
   shortcutActive = true; preferences.shortcut = shortcut;
 }
 async function configure(value) {
-  if (value.serper || value.removebg || value.gateway || value.scrapecreators) await saveSecrets(value);
+  if (value.serper || value.removebg || value.gateway) await saveSecrets(value);
   if (value.shortcut) registerShortcut(String(value.shortcut));
   if (typeof value.launchAtLogin === 'boolean') {
     if (!testMode) app.setLoginItemSettings({ openAtLogin: value.launchAtLogin, args: ['--hidden'] });
@@ -233,7 +216,6 @@ function handle(channel, fn) {
   });
 }
 async function start() {
-  await fs.mkdir(path.join(root, 'videos'), { recursive: true });
   library = new Library(root, testMode ? path.join(root, 'Downloads') : app.getPath('downloads'));
   await library.init();
   for (const entry of library.list()) assets.set(entry.id, entry);
@@ -254,7 +236,6 @@ async function start() {
   await notes.init();
   try { secrets = JSON.parse(safeStorage.decryptString(await fs.readFile(secretPath))); } catch (error) { if (error.code !== 'ENOENT') console.error('Credentials unavailable; re-enter keys in Settings.'); }
   if (process.env.AI_GATEWAY_API_KEY && process.env.AI_GATEWAY_API_KEY !== secrets.gateway) await saveSecrets({ gateway: process.env.AI_GATEWAY_API_KEY });
-  if (process.env.SCRAPECREATORS_API_KEY && process.env.SCRAPECREATORS_API_KEY !== secrets.scrapecreators) await saveSecrets({ scrapecreators: process.env.SCRAPECREATORS_API_KEY });
   try { preferences = { ...preferences, ...JSON.parse(await fs.readFile(settingsPath, 'utf8')) }; } catch {}
   const importAt = process.argv.indexOf('--credentials-file');
   if (importAt >= 0) {
@@ -268,7 +249,9 @@ async function start() {
     return net.fetch(pathToFileURL(imagePath(id)).href);
   });
   session.defaultSession.setPermissionRequestHandler((_webContents, _permission, callback) => callback(false));
-  window = new BrowserWindow({ width: 920, height: 690, minWidth: 600, minHeight: 420, show: false, backgroundColor: '#171717', title: 'Agent Native Images', titleBarStyle: 'hiddenInset', trafficLightPosition: { x: 16, y: 17 }, roundedCorners: true, webPreferences: { preload: path.join(__dirname, 'preload.cjs'), contextIsolation: true, nodeIntegration: false, sandbox: true, spellcheck: false } });
+  window = new BrowserWindow({ width: 920, height: 690, minWidth: 600, minHeight: 420, show: false, backgroundColor: '#171717', title: 'Stashframe', titleBarStyle: 'hiddenInset', trafficLightPosition: { x: 16, y: 17 }, roundedCorners: true, webPreferences: { preload: path.join(__dirname, 'preload.cjs'), contextIsolation: true, nodeIntegration: false, sandbox: true, spellcheck: false } });
+  // Join Spaces before showing so the shortcut never switches to an old desktop.
+  if (process.platform === 'darwin') window.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
   window.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
   window.webContents.on('will-navigate', event => event.preventDefault());
   window.on('close', event => { if (!quitting) { event.preventDefault(); window.hide(); } });
@@ -285,9 +268,6 @@ async function start() {
   handle('plan-searches', prompt => planSearches(prompt, { key: secrets.gateway, model: process.env.AI_MODEL || DEFAULT_MODEL }));
   handle('status', status); handle('configure', configure);
   handle('notes', () => notes.list()); handle('save-note', value => notes.save(value || {})); handle('remove-note', id => notes.remove(id));
-  handle('search-tweets', value => searchTweets(value?.query, { key: secrets.scrapecreators, page: value?.page }));
-  handle('plan-tweets', value => planTweetQuery(typeof value === 'string' ? value : value?.prompt, { key: secrets.gateway, model: process.env.AI_MODEL || DEFAULT_MODEL, filters: value?.filters }));
-  handle('tweet-video', tweetVideo);
   handle('copy-note', text => { const value = String(text ?? '').slice(0, 200000); if (!value.trim()) throw new Error('This note is empty.'); clipboard.writeText(value); });
   handle('hide', () => window.hide());
   handle('downloads', () => shell.openPath(testMode ? path.join(root, 'Downloads') : app.getPath('downloads')));
@@ -296,7 +276,7 @@ async function start() {
   handle('reveal', id => { const entry = library.list().find(item => item.id === id); if (entry) shell.showItemInFolder(entry.downloadPath || imagePath(id)); });
   try { registerShortcut(preferences.shortcut); } catch (error) { console.error(error.message); }
   const menu = [
-    { label: 'Agent Native Images', submenu: [{ label: 'Show Images', click: show }, { type: 'separator' }, { label: 'Settings…', accelerator: 'CommandOrControl+,', click: () => { show(); window.webContents.send('open-settings'); } }, { type: 'separator' }, { role: 'quit' }] },
+    { label: 'Stashframe', submenu: [{ label: 'Show Images', click: show }, { type: 'separator' }, { label: 'Settings…', accelerator: 'CommandOrControl+,', click: () => { show(); window.webContents.send('open-settings'); } }, { type: 'separator' }, { role: 'quit' }] },
     { role: 'editMenu' },
     { label: 'Window', submenu: [{ label: 'New Search', accelerator: 'CommandOrControl+T', click: () => window.webContents.send('new-tab') }, { label: 'Close Tab', accelerator: 'CommandOrControl+W', click: () => window.webContents.send('close-tab') }, { type: 'separator' }, { label: 'New Note', accelerator: 'CommandOrControl+N', click: newNote }, { type: 'separator' }, { role: 'minimize' }] },
   ];
@@ -306,7 +286,7 @@ async function start() {
     // Keep the brand colors; tray.png is 18 logical pixels with a Retina @2x asset.
     trayImage.setTemplateImage(false);
     tray = new Tray(trayImage);
-    tray.setToolTip('Agent Native Images');
+    tray.setToolTip('Stashframe');
     tray.setContextMenu(Menu.buildFromTemplate([{ label: 'Open Images', click: show }, { label: 'New Note', click: newNote }, { label: 'Downloads', click: () => shell.openPath(app.getPath('downloads')) }, { type: 'separator' }, { label: 'Quit', click: () => app.quit() }]));
     tray.on('click', toggle);
   }

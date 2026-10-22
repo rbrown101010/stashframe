@@ -1,148 +1,134 @@
-# Agent Native Images
+# Stashframe
 
-A small desktop launcher for finding images fast. Google Images search through Serper, independent search tabs, native clipboard, Downloads, one-click background removal through remove.bg, a parallel GPT Image 2 generator through Vercel AI Gateway, X (Twitter) search with tweet image and video downloads through Scrape Creators, and a notes tab for prompts and reminders.
+I built this because I’m constantly grabbing images for presentations, Excalidraw diagrams, and thumbnails. I wanted to hit a shortcut, find an image, copy it, and get back to what I was making.
 
-Built with Electron and plain JavaScript. No web server, framework build, account, or hosted backend. The charcoal palette and Geist typography follow Agent Native's visual style.
+That’s Stashframe. A small Mac app for finding images, building a library of assets, and using those assets to generate new images. The images I copy and save stay in my library, so I can keep reusing them instead of looking for the same thing again.
 
-## Use
+It’s open source. Bring your own API keys. No Stashframe account or subscription.
 
-- **⌘⇧Space** shows or hides the launcher. Change it in Settings if another app already uses it.
-- **⌘T** opens a search tab immediately. Other tabs keep loading in the background.
-- Type `monkey; banana; jungle` and press **Enter** to launch each search in a separate tab. Empty fields and repeated queries are skipped. Up to 24 searches per batch.
-- Describe the visuals you need and press **⌘Enter** or click **AI search**. A lightweight GPT-4.1 nano model returns only a semicolon-separated list, which immediately launches as parallel searches (up to 12). Manual searches never call AI.
-- Search all images, transparent images, or icons. Every image fits fully inside its cell without cropping.
-- Hover an image for **Copy**, **Save**, or **Remove BG**. The same actions appear in the full preview. **Remove BG** makes a sticker with a small white outline following the subject and a transparent background. The outline is included in copied and saved PNGs.
-- **Copy** places a real PNG image on the native clipboard and adds it to Saved.
-- PNG, JPEG, WebP, AVIF, SVG, GIF, and TIFF are converted to PNG with transparency preserved. SVG icons render at a minimum 1024 pixels on their longest edge; animated formats use the first frame.
-- **Save** writes a PNG to your Downloads folder and adds it to Saved.
-- Names follow the search: `Monkey (1).png`, `Monkey (2).png`, and so on. Copying then saving the same image reuses its library entry. A cutout is a separate image.
-- Saved images and search tabs persist across restarts. Downloads are never overwritten. Removing a library entry keeps the downloaded file.
-- The menu bar icon keeps the app available when the window is closed. Settings includes an optional **Open at login** toggle.
+## Get started
 
-| Shortcut | Action |
-| --- | --- |
-| ⌘⇧Space | Show / hide |
-| ⌘T / ⌘W | New / close search tab |
-| ⌘L | Focus search |
-| ⌘Enter | AI search from a description |
-| ⌘1–8 | Switch search tab |
-| ⌘9 | Saved |
-| Control Tab | Next tab |
-| ↓ from search | Focus first result |
-| Arrow keys | Move through results |
-| Space / Enter | Preview focused image |
-| ← / → in preview | Previous / next image in the current results or filtered Saved view |
-| ⌘C / ⌘S | Copy / save focused image or preview |
-| B | Remove background of focused image or preview |
-| Escape | Close preview or hide launcher |
-| ⌘, | Settings |
-| ⌘N | New note |
+**[Download Stashframe for Apple Silicon Macs](https://github.com/rbrown101010/stashframe/releases/latest)**, unzip it, and move Stashframe.app into Applications. This early release is unsigned; see the installation notes below.
 
-## Image generator
+Or run it from source:
 
-Use the image-with-sparkle icon below Search in the left rail. The generator fills the workspace with a minimal image grid and keeps the prompt box at the bottom.
-
-- Type a prompt and press **Enter** to generate; **Shift Enter** adds a line. The prompt and reference chips stay in place after submitting, ready to make another variation. Press Enter again for another independent generation. **Clear** (top right of the composer) or **⌘Backspace** clears only the prompt and references. Keep submitting prompts while earlier images generate. Four jobs can run concurrently, with additional jobs queued. Newest submissions stay at the top left even when results finish out of order.
-- Attach or paste an image, drop files on the prompt, or drag a grid image into it. Up to eight reference images are sent with the prompt to GPT Image 2.
-- Type **@** to choose an image from Saved. Selected references appear as image-and-name chips above the prompt and can be removed individually; the typed @ mention is removed from the prompt.
-- Choose common ratios: 1:1, 16:9, 9:16, 4:3, 3:4, 3:2, 2:3, 4:5, 5:4, or 21:9, with Fast, Standard, or High quality.
-- Hover any search result or saved image and use **Add to image generator** to keep it in the generator grid. Imported and generated images both support reference reuse, previews, Copy, and Save.
-- The grid and prompt draft persist locally. Failed jobs show their error and an explicit Retry action. Jobs interrupted by quitting are not automatically resubmitted.
-
-Generation uses `openai/gpt-image-2` by default, configurable with `IMAGE_MODEL`. Prompts and attached references are sent through Vercel AI Gateway and use its credits. Generated images are kept locally; **Save** additionally puts them in Downloads.
-
-## X (Twitter) search
-
-The **Social** (X) icon in the left rail finds tweets through your [Scrape Creators](https://scrapecreators.com/) key and shows each tweet's likes, reposts, replies, views, text, images, and videos.
-
-- **⌘T** or **+** opens an independent Social search tab; **⌘W** closes it. Start another search while earlier tabs load. Semicolon-separated queries open separate tabs, with per-tab filters and results restored on restart.
-- Use the filter icon for **All / Videos / Images**, author, minimum likes/views, Since/Until dates, and excluding replies/reposts. Until is exclusive. Selected filters also apply to **AI search** and cannot be overwritten by its response.
-- Type plain English and press **Enter**. Filters become X search operators deterministically, so `ai agents over 400 likes last week with video` runs as `ai agents min_faves:400 since:2026-09-11 filter:videos`, and the exact query appears under the search box. Understood: minimum likes, reposts, replies, or views (`400+ likes`, `over 1k retweets`, `10k views`), dates (`last 3 days`, `this month`, `yesterday`, `since 2026-09-01`, `in 2025`), `from @handle`, `to @handle`, `with video`, `with images`, `with links`, `no replies`, `no retweets`, `in english`, and `sorted by views`. Operators typed directly (`min_faves:`, `from:`, `since:`, `until:`, `filter:videos`, `-filter:replies`, `lang:`) work as on X, and a pasted tweet URL opens that tweet.
-- **AI search** (⌘Enter) sends a looser description to your AI Gateway model, which writes the query; the same deterministic normalization then runs on its output.
-- Keyword searches use Google (through Scrape Creators) to find tweet URLs and then fetch each tweet from X, so the minimum-like and date filters are checked against real counts. This is discovery of Google-indexed public posts, not an exhaustive native X search. Media and other filters are checked on retrieved posts. When a page has no matches the app loads up to two more pages automatically, and **Load more tweets** continues from there. `from:@handle` reads that account's top tweets directly, which X limits to about 100.
-- Sort by likes, reposts, views, or recency without searching again.
-- Hover an image for **Copy** (a PNG on the clipboard, kept in Saved) or **Save** (Downloads), or click it for a full preview. Hover a video for **Download** (the best MP4 to Downloads) or **Copy**, which puts the MP4 on the clipboard as a file to paste into Finder, Messages, Slack, or a video editor. **Copy text** copies the tweet, and the arrow opens it on X.
-- Each search spends Scrape Creators credits: one per Google page plus one per tweet that is not already cached. Videos over 400 MB fall back to a smaller variant.
-
-## Notes
-
-Use the note icon in the left rail, or press **⌘N** anywhere in the app, to keep short notes beside your images: prompts, hooks, links, and reminders you want at hand later.
-
-- A new note opens with the title focused. Press **Enter** to move into the text. Notes save on their own as you type, and the footer shows when the last save happened.
-- The list on the left shows every note, most recently edited first, with its title or first line and a short excerpt. Click a note to open it, or type in the search box (**⌘L** in Notes) to filter by any word in the title or text.
-- **Copy** puts the note text on the clipboard. **Delete** asks once more before removing a note.
-- Notes are stored in `notes.json` inside the app's local data folder, persist across restarts, and never leave your Mac.
-
-## Run locally
-
-Requires Node.js 22.12 or later. macOS is the verified platform.
+You need macOS, Git, and **Node.js 22.12 or newer**. Apple Silicon is the tested platform. Intel Macs can build from source with the command below. Windows and Linux are not currently supported releases.
 
 ```sh
+git clone https://github.com/rbrown101010/stashframe.git
+cd stashframe
 npm ci
 npm start
 ```
 
-For AI search, add an [AI Gateway](https://vercel.com/ai-gateway) key in Settings. The model defaults to `openai/gpt-4.1-nano`; set `AI_MODEL` when launching to override it. Launching once with `AI_GATEWAY_API_KEY` saves that key in encrypted local storage for future launches.
+On first launch, open **Settings → API Settings** and add the keys for the features you want. Save settings, then start searching. You don’t need every key.
 
-Enter your own [Serper](https://serper.dev/), [remove.bg](https://www.remove.bg/api), and [Scrape Creators](https://scrapecreators.com/) API keys in Settings. Launching once with `SCRAPECREATORS_API_KEY` set stores that key like the Gateway key. These services may charge for use. Keys are encrypted locally using Electron safeStorage backed by the macOS Keychain. They never go into renderer code or this repository.
+| Key | What it unlocks | Get one |
+| --- | --- | --- |
+| Serper | Google Images search | [serper.dev](https://serper.dev/) |
+| remove.bg | Remove Background and Sticker when an image needs its background removed | [remove.bg API](https://www.remove.bg/api) |
+| Vercel AI Gateway | AI search and image generation | [AI Gateway](https://vercel.com/ai-gateway) |
 
-AI search descriptions go to Vercel AI Gateway. Image searches go to Serper. Source images are fetched from their original host when copied, saved, or processed. Background removal uploads the selected image to remove.bg. If the original returns a web page, blocks downloads, times out, or cannot be decoded, the app retries through its browser session/cache, then tries the displayed preview and thumbnail. Available image bytes are converted to PNG; the success message says “preview quality” when a preview was used. If neither the original nor preview is accessible, refresh the search and try again.
+These services have their own pricing and credits. Stashframe uses your keys directly. Adding an outline to an existing cutout runs locally and doesn’t spend another remove.bg credit. Notes, browsing your saved library, and copying local images work without API keys.
 
-Local data lives in `~/Library/Application Support/Agent Native Images/`. Keep that directory private: it contains your library, notes, downloaded tweet videos, search session, image cache, and encrypted credentials.
+## How I use it
 
-## Package a Mac app
+Press **⌘ Shift Space** to bring it up on your current desktop, on the display under your pointer. Change the shortcut in Settings if another app uses it. Close the window or press Escape to tuck it away; the menu bar icon keeps it available.
+
+Type what you want and press Enter. Images fit inside the grid without cropping. Start another tab while the first search is still loading. If I need a few things at once, I type something like:
+
+```text
+camera; microphone; notebook
+```
+
+That opens three searches. For a looser idea, describe the visuals and press **⌘ Enter** for AI search. The filter menu gives you All, Transparent, and Icons. As you type, Stashframe also finds matching images you’ve already saved.
+
+Hover an image for actions, or click it for a larger preview:
+
+- **Copy** puts a PNG on your clipboard and keeps it in Saved. Paste it into your board, slide, or editor.
+- **Save** puts a PNG in Downloads and keeps it in Saved. Names follow the search: `Camera (1).png`, `Camera (2).png`.
+- **Remove Background** makes a transparent cutout with no outline.
+- **Sticker** removes the background and adds a small white outline around the subject. On an existing cutout, it just adds the outline.
+- **Original** steps back to the previous version while editing a search result. Original, cutout, and sticker can each be saved separately.
+- **Add to image generator** puts an image in your generation grid so you can use it as a reference.
+
+Use the left and right arrows in the preview to move through images. Copy and Save convert supported image formats to PNG, preserving transparency. Animated images use their first frame. If a site blocks the original, Stashframe tries the displayed preview and labels the result “preview quality.” If neither is accessible, it shows an error.
+
+## Generate images from your library
+
+Open the image generator in the left sidebar. Type a prompt at the bottom and press Enter. New images appear at the top left; you can submit more prompts while earlier ones are still generating. Up to four jobs run at once.
+
+Drag an image into the prompt, attach or paste a file, or type **@** to choose from Saved. References appear as image chips above your text. You can attach up to eight. I use this to bring the same assets into new graphics and thumbnail ideas.
+
+Your prompt and references stay there after submitting so you can make another variation immediately. **Clear** or **⌘ Backspace** clears the composer. **Shift Enter** adds a new line. Choose from common aspect ratios, including 1:1, 16:9, and 9:16, and Fast, Standard, or High quality.
+
+The current generation model is `openai/gpt-image-2`. AI search uses `openai/gpt-4.1-nano`. Model availability depends on your Gateway account. Developers can override them with `IMAGE_MODEL` and `AI_MODEL` when launching.
+
+## A few useful shortcuts
+
+| Shortcut | Action |
+| --- | --- |
+| ⌘ Shift Space | Show or hide Stashframe |
+| ⌘ T / ⌘ W | New / close search tab |
+| ⌘ L | Focus search |
+| ⌘ Enter | AI search |
+| ⌘ 9 | Saved images |
+| ⌘ C / ⌘ S | Copy / save the focused image or preview |
+| B / Shift B | Remove Background / Sticker |
+| ← / → | Previous / next image in preview |
+| ⌘ N | New note |
+| ⌘ , | Settings |
+| Escape | Close the preview or hide the app |
+
+Notes are a place for prompts, hooks, and reminders. They save locally as you type. Settings also includes **Open at login**.
+
+## Install your own build
 
 ```sh
 npm run package
 ```
 
-The Apple Silicon app is created at `release/Agent Native Images-darwin-arm64/Agent Native Images.app`. Copy it to Applications and open it. For Intel Macs, change `--arch=arm64` to `--arch=x64` in the package command. This is a local build, without a Developer ID signature or notarization.
+This creates `release/Stashframe-darwin-arm64/Stashframe.app`. Copy it into Applications and open it. For an Intel build:
 
-## Checks
+```sh
+npm run package -- --arch=x64
+```
+
+Builds are currently **unsigned and not notarized**. macOS may block a downloaded build; after verifying where it came from, use System Settings → Privacy & Security → Open Anyway. Don’t disable Gatekeeper globally. There is no automatic updater yet; install a newer build to update.
+
+Already using Agent Native Images? Stashframe keeps the same local data folder and app identifier, so your saved images, notes, keys, and settings carry over. Quit the old app and replace it with Stashframe; don’t run both copies.
+
+## Your data
+
+There’s no hosted Stashframe backend or telemetry. Your library, notes, image cache, generation history, and settings live on your Mac. API keys are encrypted using Electron safeStorage backed by macOS Keychain; they stay in the main process.
+
+- Image search queries go to Serper. Image previews and downloads contact their image hosts.
+- Background removal sends the selected image to remove.bg.
+- AI search sends your description to Vercel AI Gateway. Generation sends your prompt and attached reference images.
+- Experimental Jev ranking, if enabled, sends candidate images and search context through AI Gateway.
+
+Local data remains in `~/Library/Application Support/Agent Native Images/` for compatibility. Keep that folder private. Don’t upload it, API keys, or private images to GitHub. The software’s MIT license does not grant rights to images found in search; check the source before publishing them.
+
+## Experimental image ranking
+
+**Jev mode** and **Jev overlay** are optional and off by default. They attempt to rank images for relevance, clarity, and usefulness as stickers or icons, then animate the grid into order. Overlay shows the returned fit and confidence.
+
+This is not a launch dependency: the last live Gateway test did not expose images to Jev. The app checks visual capability and stops with an error rather than showing misleading ratings. Ordinary search still works. See `jev-ranking.cjs` for the integration and `JEV_MODEL` override.
+
+## Contribute
+
+Electron, plain JavaScript, and CSS. No frontend framework or web server.
 
 ```sh
 npm test
 npm run test:batch
-node test/reuse-desktop.cjs
+node test/effects-desktop.cjs
 node test/generator-desktop.cjs
 node test/notes-desktop.cjs
-node test/twitter-desktop.cjs
-node test/social-tabs-desktop.cjs
 ```
 
-The batch desktop test checks parallel tab creation, card layout, and AI completion/cancellation using mocked providers, without API charges.
+Desktop tests use isolated temporary data and mocked providers unless explicitly documented otherwise. See [CONTRIBUTING.md](CONTRIBUTING.md) for the project map and testing details, and [SECURITY.md](SECURITY.md) for reporting vulnerabilities.
 
-The library test covers concurrent naming, duplicate copy/save actions, persistence, and preserving existing Downloads files.
+## License
 
-An opt-in Electron integration check uses real API calls. Point it at a private JSON file **outside this repo** containing `serper` and `removebg` keys:
-
-```sh
-IMAGES_CREDENTIALS_FILE=/private/path/keys.json npm run test:desktop
-```
-
-Add `TEST_REMOVE_BG=1` to also test background removal and consume a remove.bg credit. Screenshots go to ignored `test-artifacts/`. Test data is isolated in a temporary directory and deleted afterward; the test copies an image to the clipboard.
-
-## Implementation
-
-- `main.cjs`: native window, global shortcut, API requests, clipboard, secure credentials, and restricted IPC.
-- `ai-search.cjs`: lightweight AI query planning with a strict semicolon-only prompt.
-- `image-formats.cjs`: asynchronous format conversion, SVG rasterization, and orientation handling.
-- `image-generation.cjs`: Gateway generation and reference editing requests.
-- `generation-store.cjs`: persistent gallery and bounded parallel job queue.
-- `notes-store.cjs`: serialized note writes with atomic persistence.
-- `twitter.cjs`: Scrape Creators requests, tweet normalization, count-based filtering, AI query planning, and bounded, MP4-validated downloads.
-- `renderer/twitter-query.js`: deterministic plain-English to X operator parser shared by both processes.
-- `library.cjs`: serialized library writes, collision-safe filenames, and Downloads.
-- `preload.cjs`: narrow context-isolated renderer bridge.
-- `renderer/`: the local interface. All remote text is inserted as text, not HTML.
-- `scripts/make-icons.swift`: app icon source.
-
-The renderer runs sandboxed with Node disabled, a restrictive content security policy, blocked navigation, and denied permission requests. API keys stay in the main process. Geist is included under its license in `assets/Geist-LICENSE.txt`.
-
-## Jev image ranking (experimental)
-
-Settings has **Jev mode** and **Jev overlay**. Mode waits one second after search results appear, then scores actual images in up to four concurrent requests and animates cards into descending fit order as answers arrive. Scores combine relevance (40%), visual clarity (30%), and suitability as an Excalidraw sticker/icon (30%). Overlay shows fit out of 100 and the sticker question's model-reported confidence when supplied, with dimension scores in its tooltip. Turning mode off restores search order. Reduced motion disables movement. Failed ranking leaves images usable and displays the error.
-
-Image bytes go through Vercel AI Gateway's TypeSafe-compatible endpoint, using `assets` and `TypeSafe-Danger-Zone-Images: true` from [TypeSafe's image docs](https://docs.typesafe.ai/images). Keys stay in the main process. The default model is the catalog-listed `typesafe-ai/jev`; `JEV_MODEL` can override it when Gateway exposes a newer ID. The native provider announced Jev 1.14 (`jev-preview`) on October 14; Gateway's catalog has not yet confirmed that version. Both native Jev 1.13 and 1.14 support the experimental image flag.
-
-Verification: unit tests and desktop tests with a mock provider pass. Live verification with the refreshed Gateway key succeeds for authentication but fails the image check: Jev reports that the supplied test images are not visible. The preview model returns 404. A cached visual capability check now blocks ranking when image inputs are unavailable, instead of displaying misleading scores. The underlying served version remains unverified. Jev mode defaults off. Test with `node test/jev-desktop.cjs`.
+[MIT](LICENSE). Use it, change it, build on it. Bundled Geist fonts have their own [license](assets/Geist-LICENSE.txt).
